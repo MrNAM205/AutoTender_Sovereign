@@ -1,0 +1,10 @@
+Metadata-Version: 2.4
+Name: autotender
+Version: 0.1.0
+Summary: Automated document annotation and tender generator (educational use only)
+Author-email: Your Name <you@example.com>
+License: MIT
+Requires-Dist: pillow
+Requires-Dist: reportlab
+Requires-Dist: pytesseract
+Requires-Dist: pypdf

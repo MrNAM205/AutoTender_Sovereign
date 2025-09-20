@@ -1,0 +1,2 @@
+[console_scripts]
+autotender = autotender.cli:main
