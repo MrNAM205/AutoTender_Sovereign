@@ -1,0 +1,8 @@
+# Ignore the cloned repository
+sovereign-financial-cockpit-old/
+
+# Ignore generated annotated files
+*_annotated.jpg
+*_annotated.png
+*_annotated.pdf
+annotated-bill.png

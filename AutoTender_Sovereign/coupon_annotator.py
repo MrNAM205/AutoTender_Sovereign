@@ -1,104 +1,136 @@
-from PyPDF2 import PdfReader, PdfWriter
-from reportlab.pdfgen import canvas
-from reportlab.lib.pagesizes import letter
-from PIL import Image, ImageDraw, ImageFont
-import io
+import argparse
 import datetime
+from io import BytesIO
+import os
 
-def create_annotation_overlay(annotations, signature_path, signature_coords):
-    """
-    Creates a PDF overlay with the specified text annotations and signature.
-    """
-    packet = io.BytesIO()
-    can = canvas.Canvas(packet, pagesize=letter)
-    for text, coords in annotations.items():
-        can.drawString(coords[0], coords[1], text)
-    if signature_path and signature_coords:
-        try:
-            with Image.open(signature_path) as signature_img:
-                can.drawImage(signature_path, signature_coords[0], signature_coords[1], width=100, height=50, mask='auto')
-        except FileNotFoundError:
-            print(f"Signature file not found at {signature_path}")
-    can.save()
-    packet.seek(0)
-    return packet
+from PIL import Image, ImageDraw, ImageFont
+from pypdf import PdfReader, PdfWriter
+from reportlab.lib.pagesizes import letter
+from reportlab.pdfgen import canvas
 
-def annotate_pdf_coupon(input_pdf_path, output_pdf_path, annotations, signature_path, signature_coords):
-    """
-    Annotates a PDF coupon with text and a signature.
-    """
-    overlay_pdf_packet = create_annotation_overlay(annotations, signature_path, signature_coords)
-    overlay_pdf = PdfReader(overlay_pdf_packet)
-    existing_pdf = PdfReader(open(input_pdf_path, "rb"))
-    output = PdfWriter()
-    page = existing_pdf.pages[0]
-    page.merge_page(overlay_pdf.pages[0])
-    output.add_page(page)
-    with open(output_pdf_path, "wb") as outputStream:
-        output.write(outputStream)
-    print(f"Successfully annotated PDF and saved to {output_pdf_path}")
 
-def annotate_image_coupon(input_image_path, output_image_path, endorsement_lines, signature_text, signature_coords, date_coords):
+def get_font(font_name, size):
+    try:
+        return ImageFont.truetype(font_name, size)
+    except IOError:
+        return ImageFont.load_default()
+
+def annotate_image(input_path, output_path, endorsement_lines, signature, x, y):
     """
-    Annotates an image with an inline endorsement.
+    Annotates an image with a multi-line endorsement, with a white-out box.
     """
     try:
-        image = Image.open(input_image_path)
+        image = Image.open(input_path)
         draw = ImageDraw.Draw(image)
 
-        # Fonts
-        try:
-            font_regular = ImageFont.truetype("arial.ttf", 25)
-        except IOError:
-            font_regular = ImageFont.load_default()
-        
-        try:
-            font_bold = ImageFont.truetype("arialbd.ttf", 30)
-        except IOError:
-            font_bold = font_regular
+        font_regular = get_font("arial.ttf", 25)
+        font_bold = get_font("arialbd.ttf", 30)
 
-        # Endorsement lines
-        for text, coords, is_bold in endorsement_lines:
-            font_to_use = font_bold if is_bold else font_regular
-            draw.text(coords, text, fill="black", font=font_to_use)
+        # Calculate text block size
+        max_width = 0
+        total_height = 0
+        line_spacing = 10
+        for line in endorsement_lines:
+            # This is a simplification; proper width calculation is more complex
+            max_width = max(max_width, len(line) * 15) 
+            total_height += font_regular.getbbox(line)[3] + line_spacing
+        total_height += font_regular.getbbox(signature)[3] + line_spacing # Add space for signature and date
+
+        # Draw white-out box
+        box_margin = 20
+        draw.rectangle((x - box_margin, y - box_margin, x + max_width + box_margin, y + total_height + box_margin), fill="white")
+
+        # Text layout
+        current_y = y
+        for line in endorsement_lines:
+            font_to_use = font_bold if line.startswith("**") else font_regular
+            draw.text((x, current_y), line.replace("**", ""), fill="black", font=font_to_use)
+            current_y += font_regular.getbbox(line)[3] + line_spacing
 
         # Signature
-        try:
-            signature_font = ImageFont.truetype("arial.ttf", 35)
-        except IOError:
-            signature_font = font_regular
-        draw.text(signature_coords, signature_text, fill="blue", font=signature_font)
+        current_y += line_spacing
+        draw.text((x, current_y), signature, fill="blue", font=get_font("arial.ttf", 35))
+        current_y += font_regular.getbbox(signature)[3] + line_spacing
 
         # Date
         date_str = datetime.date.today().strftime("%Y-%m-%d")
-        draw.text(date_coords, f"Date: {date_str}", fill="black", font=font_regular)
+        draw.text((x, current_y), f"Date: {date_str}", fill="black", font=font_regular)
 
-        image.save(output_image_path)
-        print(f"Successfully annotated image and saved to {output_image_path}")
+        image.save(output_path)
+        print(f"Successfully annotated image and saved to {output_path}")
 
-    except FileNotFoundError:
-        print(f"Input image file not found at {input_image_path}")
     except Exception as e:
-        print(f"An error occurred: {e}")
+        print(f"An error occurred during image annotation: {e}")
 
-if __name__ == '__main__':
-    input_image = "/home/mrnam205/Desktop/try2/credit-card-statement-example-scaled.jpg"
-    output_image = "/home/mrnam205/Desktop/try2/annotated-credit-card-statement-refined.jpg"
-    
-    lines = [
-        ("Pay to the Order of: GENERIC CREDIT CARD", (100, 1950), True),
-        ("Amount: $250.00", (100, 1990), True),
-        ("", (100, 2020), False),
-        ("For Value Received; Accepted for Settlement and Closure.", (100, 2050), False),
-        ("Tendered for discharge of obligation per UCC § 3-603(b).", (100, 2080), False),
-        ("This instrument is to be negotiated per UCC § 3-104 and § 3-204.", (100, 2110), False),
-        ("Acceptance by deposit or non-response is governed by UCC § 3-409 and the Mailbox Rule.", (100, 2140), False),
-        ("Dishonor of this tender will be reported per IRS Publications and may result in the issuance of Form 1099-C.", (100, 2170), False),
-        ("Without Prejudice, UCC 1-308.", (100, 2200), False),
-    ]
-    
-    signature = "/s/ john-doe:smith, beneficiary"
-    sig_coords = (100, 2250)
-    dt_coords = (100, 2300)
+def annotate_pdf(input_path, output_path, endorsement_lines, signature, x, y):
+    """
+    Annotates a PDF with a multi-line endorsement, with a white-out box.
+    """
+    try:
+        packet = BytesIO()
+        can = canvas.Canvas(packet, pagesize=letter)
 
-    annotate_image_coupon(input_image, output_image, lines, signature, sig_coords, dt_coords)
+        # This is a simplified white-out box for PDF
+        can.setFillColorRGB(1, 1, 1)
+        can.rect(x, y - 150, 500, 150, fill=1, stroke=0)
+
+        can.setFillColorRGB(0, 0, 0)
+        text_object = can.beginText(x, y)
+        
+        for line in endorsement_lines:
+            font_name = "Helvetica-Bold" if line.startswith("**") else "Helvetica"
+            text_object.setFont(font_name, 10)
+            text_object.textLine(line.replace("**", ""))
+        
+        text_object.setFont("Helvetica", 12)
+        text_object.textLine("")
+        text_object.textLine(signature)
+        text_object.textLine(f"Date: {datetime.date.today().strftime('%Y-%m-%d')}")
+
+        can.drawText(text_object)
+        can.save()
+        packet.seek(0)
+
+        overlay = PdfReader(packet)
+        existing_pdf = PdfReader(open(input_path, "rb"))
+        output = PdfWriter()
+
+        page = existing_pdf.pages[0]
+        page.merge_page(overlay.pages[0])
+        output.add_page(page)
+
+        with open(output_path, "wb") as f:
+            output.write(f)
+        print(f"Successfully annotated PDF and saved to {output_path}")
+
+    except Exception as e:
+        print(f"An error occurred during PDF annotation: {e}")
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Annotate a bill with a sovereign endorsement.")
+    parser.add_argument("--input", required=True, help="Path to the input bill (PDF or image).")
+    parser.add_argument("--output", help="Path to save the annotated bill. If not provided, defaults to [input]_annotated.[ext]")
+    parser.add_argument("--x", type=int, default=100, help="X-coordinate for the top-left of the endorsement block.")
+    parser.add_argument("--y", type=int, default=1950, help="Y-coordinate for the top-left of the endorsement block.")
+    parser.add_argument("--signature", required=True, help="The signature text to apply.")
+    parser.add_argument('--lines', nargs='+', required=True, help='The lines of the endorsement text. Use "" for blank lines. Prefix with ** for bold.')
+
+    args = parser.parse_args()
+
+    # Determine output path if not provided
+    if not args.output:
+        file_name, file_ext = os.path.splitext(args.input)
+        args.output = f"{file_name}_annotated{file_ext}"
+
+    # Determine file type and annotate
+    file_ext = os.path.splitext(args.input)[1].lower()
+    if file_ext in [".pdf"]:
+        # PDF coordinates are from bottom-left, so we need to adjust
+        # This is a simplistic adjustment and may need refinement
+        pdf_y = 800 - args.y / 2 # A rough conversion
+        annotate_pdf(args.input, args.output, args.lines, args.signature, args.x, pdf_y)
+    elif file_ext in [".png", ".jpg", ".jpeg"]:
+        annotate_image(args.input, args.output, args.lines, args.signature, args.x, args.y)
+    else:
+        print(f"Error: Unsupported file type '{file_ext}'. Please use a PDF or image file.")
