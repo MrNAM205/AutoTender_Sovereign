@@ -1,25 +1,39 @@
-# AutoTender Sovereign
+# Sovereign Billing Instrument Archive
 
-## Mission
-Automate the annotation, signing, and dispatch of remittance coupons as lawful instruments of tender. This project is designed to empower individuals to exercise their rights under the Uniform Commercial Code (UCC) when settling debts.
+This repository documents the reclamation of billing statements—utility, credit, medical, telecom, and mortgage—as lawful negotiable instruments under U.S. commercial law.
 
-## Core Modules
-- `CouponAnnotator`: Adds payment details, signature, and legal citations to remittance coupons (PDFs or images).
-- `CoverLetterGenerator` (Future): Drafts UCC-compliant letters citing tender laws.
-- `LegalSupportFetcher` (Future): Scrapes and summarizes statutes and case law.
+## 📜 Purpose
 
-## Legal Basis
-This tool operates on principles from the Uniform Commercial Code (UCC) and other relevant regulations, including:
-- **UCC § 3-104:** Negotiable Instrument
-- **UCC § 3-204:** Endorsement
-- **UCC § 3-409:** Acceptance
-- **UCC § 3-603(b):** Tender Refusal
-- **22 CFR § 23.2:** Federal Endorsement
-- **Mailbox Rule** (Common Law)
-- **IRS Publication 5137 & 1099-C**
+To demonstrate that remittance coupons and billing stubs, when properly endorsed and dispatched, qualify as lawful tender under:
 
-## Usage
-To use the `coupon_annotator.py` script, configure the `if __name__ == '__main__':` block with the path to your input file and the desired output path. The script will then generate an annotated image with a detailed legal endorsement.
+- UCC Article 3: Negotiable Instruments
+- 22 CFR § 23.2: Federal endorsement of remittances
+- IRS Publication 5137 & 1099-C: Nonstandard tender and debt discharge
+- Common Law Mailbox Rule
 
----
-*Disclaimer: This project is for educational and informational purposes only and does not constitute legal advice.*
+## 🧠 Structure
+
+This archive is organized into five modules:
+
+1. **Statutory Core**  
+   Full-text excerpts and annotations from U.S. commercial law.
+
+2. **Billing Format Repository**  
+   Dissections of real-world bills across industries.
+
+3. **Instrument Anatomy Mapping**  
+   Semantic overlays linking bill components to negotiable instrument structure.
+
+4. **Contradiction Detection**  
+   Flags rhetorical dodges and refusal logic across billing formats.
+
+5. **Remedy Protocols** *(reserved for build phase)*  
+   Includes affidavit templates, conditional acceptance flows, and escalation logic.
+
+## 🛠️ Sovereign Intent
+
+This is not a workaround. It is a restoration of lawful grammar. Every billing stub becomes narratable. Every refusal becomes actionable. Every dispatch becomes a rite of authorship.
+
+## 🧬 Future Integration
+
+This README will evolve into a semantic cognition surface for Verobrix—embedding agent triggers, GUI overlays, and lawful remedy protocols.

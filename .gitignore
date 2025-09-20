@@ -6,3 +6,7 @@ sovereign-financial-cockpit-old/
 *_annotated.png
 *_annotated.pdf
 annotated-bill.png
+
+# Ignore generated remedy files
+*_remedy.md
+tender_letter.md
