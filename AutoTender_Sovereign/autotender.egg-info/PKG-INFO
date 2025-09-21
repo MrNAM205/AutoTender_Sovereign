@@ -8,3 +8,4 @@ Requires-Dist: pillow
 Requires-Dist: reportlab
 Requires-Dist: pytesseract
 Requires-Dist: pypdf
+Requires-Dist: pdf2image

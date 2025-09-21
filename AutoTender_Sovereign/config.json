@@ -1,6 +1,12 @@
 {
   "annotations": [
-    {"text": "Accepted for Value", "x": 100, "y": 700, "size": 16, "color": "blue", "font": "arial.ttf"},
-    {"text": "Without Recourse", "x": 100, "y": 680, "size": 12, "color": "black"}
+    {
+      "text": "<-- Accepted for Value",
+      "match": "Amount",
+      "offset_x": 150,
+      "offset_y": 0,
+      "size": 16,
+      "color": "blue"
+    }
   ]
 }

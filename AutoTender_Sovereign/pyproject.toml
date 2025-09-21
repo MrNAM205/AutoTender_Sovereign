@@ -12,7 +12,8 @@ dependencies = [
     "pillow",
     "reportlab",
     "pytesseract",
-    "pypdf"
+    "pypdf",
+    "pdf2image"
 ]
 
 [project.scripts]
