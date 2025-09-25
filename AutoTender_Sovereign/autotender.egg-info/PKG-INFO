@@ -9,3 +9,8 @@ Requires-Dist: reportlab
 Requires-Dist: pytesseract
 Requires-Dist: pypdf
 Requires-Dist: pdf2image
+Requires-Dist: layoutparser
+Requires-Dist: torch
+Requires-Dist: torchvision
+Requires-Dist: transformers
+Requires-Dist: deepdoctection

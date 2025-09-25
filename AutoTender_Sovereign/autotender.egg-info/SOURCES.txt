@@ -2,6 +2,8 @@ pyproject.toml
 autotender/__init__.py
 autotender/annotator.py
 autotender/cli.py
+autotender/generator.py
+autotender/scanner.py
 autotender.egg-info/PKG-INFO
 autotender.egg-info/SOURCES.txt
 autotender.egg-info/dependency_links.txt

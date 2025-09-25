@@ -3,3 +3,8 @@ reportlab
 pytesseract
 pypdf
 pdf2image
+layoutparser
+torch
+torchvision
+transformers
+deepdoctection

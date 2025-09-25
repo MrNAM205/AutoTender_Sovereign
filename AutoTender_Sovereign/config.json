@@ -1,12 +1,11 @@
 {
   "annotations": [
     {
-      "text": "<-- Accepted for Value",
-      "match": "Amount",
-      "offset_x": 150,
+      "text": "<-- ML-Powered Annotation",
+      "field": "total_due",
+      "offset_x": 100,
       "offset_y": 0,
-      "size": 16,
-      "color": "blue"
+      "color": "green"
     }
   ]
 }

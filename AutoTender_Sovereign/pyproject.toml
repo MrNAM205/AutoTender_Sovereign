@@ -13,7 +13,12 @@ dependencies = [
     "reportlab",
     "pytesseract",
     "pypdf",
-    "pdf2image"
+    "pdf2image",
+    "layoutparser",
+    "torch",
+    "torchvision",
+    "transformers",
+    "deepdoctection"
 ]
 
 [project.scripts]

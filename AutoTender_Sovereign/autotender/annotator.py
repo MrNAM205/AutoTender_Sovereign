@@ -8,11 +8,21 @@ from PIL import Image, ImageDraw, ImageFont
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import letter
 from pypdf import PdfReader, PdfWriter
-import pytesseract
+
+import deepdoctection as dd
 
 # --- Logging setup ---
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
+
+# Initialize DeepDoctection analyzer once
+# This will download models the first time it's run
+try:
+    analyzer = dd.get_dd_analyzer()
+    logger.info("DeepDoctection analyzer initialized.")
+except Exception as e:
+    logger.error(f"Failed to initialize DeepDoctection analyzer: {e}")
+    analyzer = None # Set to None if initialization fails
 
 
 # --- Config Loader ---
@@ -50,21 +60,6 @@ def get_font(size: int, font_path: Optional[str] = None) -> ImageFont.ImageFont:
     return ImageFont.load_default()
 
 
-# --- OCR Helper ---
-def find_text_positions(image: Image.Image, target: str):
-    """
-    Run OCR on an image and return positions of target text matches.
-    Returns list of (x, y, w, h) boxes.
-    """
-    data = pytesseract.image_to_data(image, output_type=pytesseract.Output.DICT)
-    positions = []
-    for i, word in enumerate(data["text"]):
-        if target.lower() in word.strip().lower():
-            x, y, w, h = data["left"][i], data["top"][i], data["width"][i], data["height"][i]
-            positions.append((x, y, w, h))
-    return positions
-
-
 # --- Image Annotation ---
 def annotate_image(
     input_file: Union[str, Path],
@@ -73,80 +68,131 @@ def annotate_image(
 ):
     """Annotate an image file (JPG, PNG)."""
     img = Image.open(input_file).convert("RGB")
-    draw = ImageDraw.Draw(img)
 
+    document_obj = None
+    if analyzer:
+        try:
+            # DeepDoctection analyze expects a path or a PIL Image
+            document_obj = analyzer.analyze(path=str(input_file))
+            logger.info("DeepDoctection analysis complete for image.")
+        except Exception as e:
+            logger.error(f"DeepDoctection analysis failed for image: {e}")
+
+    draw = ImageDraw.Draw(img)
     for ann in config.get("annotations", []):
         font = get_font(ann.get("size", 12), ann.get("font"))
         color = ann.get("color", "red")
         text = ann["text"]
 
-        if "match" in ann:  # OCR-driven placement
-            matches = find_text_positions(img, ann["match"])
-            if matches:
-                x, y, w, h = matches[0]
-                x += ann.get("offset_x", 0)
-                y += ann.get("offset_y", 0)
-            else:
-                logger.warning(f"Match '{ann['match']}' not found, using default coords")
-                x, y = ann.get("x", 50), ann.get("y", 50)
-        else:  # Manual placement
-            x, y = ann["x"], ann["y"]
+        x, y = ann.get("x", 50), ann.get("y", 50) # Default to manual placement
 
+        if "field" in ann and document_obj:
+            # Find the bounding box of the field using DeepDoctection's document object
+            # This is a simplified example; actual field detection might be more complex
+            # and involve iterating through document_obj.get_annotation(category_name="TEXT")
+            # or similar methods to find specific text blocks.
+            # For now, we'll simulate by looking for a text block that contains the field name.
+            
+            # DeepDoctection's layout objects have .text and .bounding_box
+            found_field_box = None
+            for block in document_obj.get_annotation(category_name="TEXT"):
+                if ann["field"].lower() in block.text.lower():
+                    found_field_box = block.bounding_box
+                    break
+            
+            if found_field_box:
+                # DeepDoctection coordinates are (x1, y1, x2, y2)
+                # PIL coordinates are (x, y) from top-left
+                # We'll use the top-left of the found field
+                x_field, y_field = found_field_box[0], found_field_box[1]
+                x = x_field + ann.get("offset_x", 0)
+                y = y_field + ann.get("offset_y", 0)
+            else:
+                logger.warning(f"Field '{ann['field']}' not found, using default coords")
+        
         draw.text((x, y), text, fill=color, font=font)
 
     img.save(output_file)
     logger.info(f"Annotated image saved to {output_file}")
 
 
-# --- PDF Annotation (with OCR) ---
+# --- PDF Annotation ---
 def annotate_pdf(
     input_file: Union[str, Path],
     output_file: Union[str, Path],
     config: Dict[str, Any],
 ):
-    """Annotate a PDF by overlaying text (OCR placement if available)."""
-    try:
-        from pdf2image import convert_from_path
-    except ImportError:
-        logger.error("pdf2image library not found. Please install it to use OCR on PDFs.")
-        return
-
+    """Annotate a PDF by overlaying text on each page."""
     writer = PdfWriter()
-    images = convert_from_path(str(input_file))
     
-    for page_number, page in enumerate(images):
-        # Create an in-memory overlay
-        packet = BytesIO()
-        c = canvas.Canvas(packet, pagesize=(page.width, page.height))
+    with open(input_file, "rb") as f_in:
+        reader = PdfReader(f_in)
+        
+        for page_number, page in enumerate(reader.pages):
+            document_obj = None
+            if analyzer:
+                try:
+                    # DeepDoctection can analyze PDF pages directly
+                    # For multi-page PDFs, we might need to pass individual pages or a range
+                    # For simplicity, we'll analyze the whole PDF once and then get page-specific info
+                    # This part needs refinement for page-specific layout detection
+                    if page_number == 0: # Analyze only once for the whole document
+                        document_obj = analyzer.analyze(path=str(input_file))
+                        logger.info("DeepDoctection analysis complete for PDF.")
+                except Exception as e:
+                    logger.error(f"DeepDoctection analysis failed for PDF: {e}")
 
-        for ann in config.get("annotations", []):
-            x, y = ann.get("x", 50), ann.get("y", 50)
+            # Create an in-memory overlay
+            packet = BytesIO()
+            # ReportLab uses bottom-left origin, so we need to convert PIL top-left y to ReportLab y
+            # Assuming letter size for now, need to get actual page size from PDF
+            page_width = page.mediabox.width
+            page_height = page.mediabox.height
+            c = canvas.Canvas(packet, pagesize=(page_width, page_height))
 
-            if "match" in ann:  # OCR-driven placement
-                matches = find_text_positions(page, ann["match"])
-                if matches:
-                    x_ocr, y_ocr, w, h = matches[0]
-                    x = x_ocr + ann.get("offset_x", 0)
-                    # PDF coordinates are from bottom-left, so we need to invert the y-coordinate
-                    y = page.height - y_ocr - ann.get("offset_y", 0)
-                else:
-                    logger.warning(f"Match '{ann['match']}' not found on page {page_number + 1}")
+            # Apply annotations to the canvas
+            # Need to adjust y-coordinates for ReportLab's bottom-left origin
+            # This is a simplified conversion; actual conversion needs to consider font size and text height
             
-            c.setFont("Helvetica", ann.get("size", 12))
-            color = ann.get("color", "red")
-            if color.lower() == "red": c.setFillColorRGB(1, 0, 0)
-            elif color.lower() == "blue": c.setFillColorRGB(0, 0, 1)
-            else: c.setFillColorRGB(0, 0, 0) # default to black
-            c.drawString(x, y, ann["text"])
+            for ann in config.get("annotations", []):
+                font = get_font(ann.get("size", 12), ann.get("font"))
+                color = ann.get("color", "red")
+                text = ann["text"]
 
-        c.save()
-        packet.seek(0)
+                x, y = ann.get("x", 50), ann.get("y", 50) # Default to manual placement
 
-        # Merge overlay with the existing page
-        overlay_reader = PdfReader(packet)
-        pdf_page = PdfReader(str(input_file)).pages[page_number]
-        pdf_page.merge_page(overlay_reader.pages[0])
-        writer.add_page(pdf_page)
+                if "field" in ann and document_obj:
+                    found_field_box = None
+                    for block in document_obj.get_annotation(category_name="TEXT"):
+                        if ann["field"].lower() in block.text.lower():
+                            found_field_box = block.bounding_box
+                            break
+                    
+                    if found_field_box:
+                        x_field, y_field = found_field_box[0], found_field_box[1]
+                        x = x_field + ann.get("offset_x", 0)
+                        # Convert PIL top-left y to ReportLab bottom-left y
+                        y = page_height - (y_field + ann.get("offset_y", 0))
+                    else:
+                        logger.warning(f"Field '{ann['field']}' not found on page {page_number + 1}, using default coords")
+                else:
+                    # Convert PIL top-left y to ReportLab bottom-left y for manual placement
+                    y = page_height - y
+
+                c.setFont("Helvetica", ann.get("size", 12))
+                if color.lower() == "red": c.setFillColorRGB(1, 0, 0)
+                elif color.lower() == "blue": c.setFillColorRGB(0, 0, 1)
+                else: c.setFillColorRGB(0, 0, 0) # default to black
+                c.drawString(x, y, ann["text"])
+
+            c.save()
+            packet.seek(0)
+
+            # Merge overlay with the existing page
+            overlay_reader = PdfReader(packet)
+            pdf_page = reader.pages[page_number] # Get the original page object
+            pdf_page.merge_page(overlay_reader.pages[0])
+            writer.add_page(pdf_page)
 
     with open(output_file, "wb") as f_out:
         writer.write(f_out)
@@ -160,7 +206,11 @@ def annotate(
     output_file: Union[str, Path],
     config_path: Optional[Union[str, Path]] = None,
 ):
-    """Auto-detect input type and apply annotations (OCR-aware)."""
+    """Auto-detect input type and apply annotations (DeepDoctection-aware)."""
+    if not analyzer:
+        logger.error("DeepDoctection analyzer not initialized. Cannot proceed with annotation.")
+        return
+
     config = load_config(config_path)
     input_file = Path(input_file)
 
